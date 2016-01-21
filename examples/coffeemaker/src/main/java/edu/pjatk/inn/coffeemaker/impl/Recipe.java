@@ -7,6 +7,10 @@ import sorcer.service.ContextException;
 import java.io.Serializable;
 
 /**
+ * The reason for this class is to provide recipe on ordered coffee.
+ * Class include information like recipient name, price and amount of supplies used to prepare coffee.
+ * It works as serializable model.
+ * JavaDoc solves HA2 INN HomeWork
  * @author   Sarah & Mike
  */
 public class Recipe implements Serializable {
@@ -16,7 +20,7 @@ public class Recipe implements Serializable {
     private int amtMilk;
     private int amtSugar;
     private int amtChocolate;
-    
+
     public Recipe() {
     	this.name = "";
     	this.price = 0;
@@ -27,13 +31,13 @@ public class Recipe implements Serializable {
     }
     
     /**
-	 * @return   Returns the amtChocolate.
+	 * @return   Returns the amount of chocolate used to make the coffee.
 	 */
     public int getAmtChocolate() {
 		return amtChocolate;
 	}
     /**
-	 * @param amtChocolate   The amtChocolate to set.
+	 * @param amtChocolate   The chocolate amount to be printed on the recipe.
 	 */
     public void setAmtChocolate(int amtChocolate) {
 		if (amtChocolate >= 0) {
@@ -41,13 +45,13 @@ public class Recipe implements Serializable {
 		} 
 	}
     /**
-	 * @return   Returns the amtCoffee.
+	 * @return   Returns the amount of coffee extract used to make the coffee.
 	 */
     public int getAmtCoffee() {
 		return amtCoffee;
 	}
     /**
-	 * @param amtCoffee   The amtCoffee to set.
+	 * @param amtCoffee   The coffee extract amount to be printed on the recipe.
 	 */
     public void setAmtCoffee(int amtCoffee) {
 		if (amtCoffee >= 0) {
@@ -55,13 +59,13 @@ public class Recipe implements Serializable {
 		} 
 	}
     /**
-	 * @return   Returns the amtMilk.
+	 * @return   Returns the amount of milk used to make the coffee
 	 */
     public int getAmtMilk() {
 		return amtMilk;
 	}
     /**
-	 * @param amtMilk   The amtMilk to set.
+	 * @param amtMilk   The milk amount to be printed on the recipe.
 	 */
     public void setAmtMilk(int amtMilk) {
 		if (amtMilk >= 0) {
@@ -69,13 +73,13 @@ public class Recipe implements Serializable {
 		} 
 	}
     /**
-	 * @return   Returns the amtSugar.
+	 * @return   Returns the amount of sugar used to make the coffee
 	 */
     public int getAmtSugar() {
 		return amtSugar;
 	}
     /**
-	 * @param amtSugar   The amtSugar to set.
+	 * @param amtSugar   The suger amount to be printed on the recipe.
 	 */
     public void setAmtSugar(int amtSugar) {
 		if (amtSugar >= 0) {
@@ -83,13 +87,13 @@ public class Recipe implements Serializable {
 		} 
 	}
     /**
-	 * @return   Returns the name.
+	 * @return   Returns recipient name.
 	 */
     public String getName() {
 		return name;
 	}
     /**
-	 * @param name   The name to set.
+	 * @param name   Set name of the recipient.
 	 */
     public void setName(String name) {
     	if(name != null) {
@@ -97,13 +101,13 @@ public class Recipe implements Serializable {
     	}
 	}
     /**
-	 * @return   Returns the price.
+	 * @return   Returns the coffee price.
 	 */
     public int getPrice() {
 		return price;
 	}
     /**
-	 * @param price   The price to set.
+	 * @param price   The price to be printed on recipe.
 	 */
     public void setPrice(int price) {
 		if (price >= 0) {
