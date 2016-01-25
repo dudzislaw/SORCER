@@ -11,19 +11,17 @@ import org.slf4j.LoggerFactory;
 import org.sorcer.test.ProjectContext;
 import org.sorcer.test.SorcerTestRunner;
 import sorcer.service.ContextException;
-import sorcer.service.Exertion;
 
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertTrue;
-import static sorcer.eo.operator.*;
 
 /**
  * @author Andrzej Górz & Marcin Dobosz
  */
 @RunWith(SorcerTestRunner.class)
 @ProjectContext("examples/coffeemaker")
-public class CoffeeMakerTest6 {
-	private final static Logger logger = LoggerFactory.getLogger(CoffeeMakerTest6.class);
+public class CoffeeMakerTestBeverage {
+	private final static Logger logger = LoggerFactory.getLogger(CoffeeMakerTestBeverage.class);
 
 	private CoffeeMaker coffeeMaker;
 	private Inventory inventory;
