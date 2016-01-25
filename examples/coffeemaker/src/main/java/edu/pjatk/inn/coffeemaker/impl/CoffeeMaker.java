@@ -175,7 +175,7 @@ public class CoffeeMaker implements CoffeeMaking, CoffeeService {
      */
     public int makeCoffee(Recipe r, int amtPaid) {
         boolean canMakeCoffee = true;
-        if(amtPaid < r.getPrice()) {
+        if(amtPaid <= r.getPrice()) {
             canMakeCoffee = false;
         }
         if(!inventory.enoughIngredients(r)) {
