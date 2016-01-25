@@ -1,7 +1,7 @@
 package edu.pjatk.inn.coffeemaker;
 
 /**
- * @author Andrzej Górz & Marcin Dobosz
+ * @author Andrzej GÃ³rz & Marcin Dobosz
  */
 
 import edu.pjatk.inn.coffeemaker.impl.CoffeeMaker;
