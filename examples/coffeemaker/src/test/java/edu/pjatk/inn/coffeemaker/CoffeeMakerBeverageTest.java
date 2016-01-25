@@ -20,8 +20,8 @@ import static org.junit.Assert.assertTrue;
  */
 @RunWith(SorcerTestRunner.class)
 @ProjectContext("examples/coffeemaker")
-public class CoffeeMakerTestBeverage {
-	private final static Logger logger = LoggerFactory.getLogger(CoffeeMakerTestBeverage.class);
+public class CoffeeMakerBeverageTest {
+	private final static Logger logger = LoggerFactory.getLogger(CoffeeMakerBeverageTest.class);
 
 	private CoffeeMaker coffeeMaker;
 	private Inventory inventory;
