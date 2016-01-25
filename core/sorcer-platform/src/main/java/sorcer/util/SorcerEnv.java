@@ -130,7 +130,7 @@ public class SorcerEnv extends SOS {
 	 */
 	public static File getHomeDir() {
         try {
-            String hd = System.getenv("SORCER_HOME");
+            String hd = System.getenv(SORCER_HOME);
             if (hd != null)
                 hd = hd.trim();
 
