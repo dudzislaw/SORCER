@@ -2,6 +2,9 @@
 
 addRecipe15 - "Coffee could not be added." - kawa może być dodana, błąd w teście
 
+błąd w pliku /examples/coffeemaker/src/main/java/edu/pjatk/inn/coffeemaker/impl/CoffeeMaker.java
+maksymalna liczba przepisów była ustawiona na 4, z dokumentacji wynikało, że mogą być tylko 3
+https://github.com/dudzislaw/SORCER/blob/5b7ab5c7d5816de7aad1dd54705a9987e2d7e0bf/examples/coffeemaker/src/main/java/edu/pjatk/inn/coffeemaker/impl/CoffeeMaker.java
 
 2) Delete a Recipe - OK
 
@@ -18,6 +21,7 @@ editRecipe2 - "Coffee could not be added.", a
 
 znaleziony został błąd w pliku: examples/coffeemaker/src/main/java/edu/pjatk/inn/coffeemaker/impl/CoffeeMaker.java
 dodawanie produktów do maszyny zostało poprawione: https://github.com/dudzislaw/SORCER/commit/fca2914e23a0be8cd8957abc963970d1dab5f802
+"if(amtCoffee < 0 || amtMilk < 0 || amtSugar > 0 || amtChocolate < 0) {"
 
 
 5) Check Inventory - OK
@@ -27,3 +31,13 @@ dodawanie produktów do maszyny zostało poprawione: https://github.com/dudzisla
 
 znaleziony został błąd w pliku: examples/coffeemaker/src/main/java/edu/pjatk/inn/coffeemaker/impl/CoffeeMaker.java
 zmiana stanu kawy w maszynie została poprawiona: https://github.com/dudzislaw/SORCER/commit/47e23c0744685809e19ad576b3c51636a26c33e7?diff=unified#diff-37cd776d56a85eb53d054226cac45b5d
+
+kawę możemy kupić również, gdy środki wrzucone do automatu są równe cenie
+"if(amtPaid < r.getPrice()) {"
+poprawka w pliku: /examples/coffeemaker/src/main/java/edu/pjatk/inn/coffeemaker/impl/CoffeeMaker.java
+https://github.com/dudzislaw/SORCER/blob/5b7ab5c7d5816de7aad1dd54705a9987e2d7e0bf/examples/coffeemaker/src/main/java/edu/pjatk/inn/coffeemaker/impl/CoffeeMaker.java
+
+
+/core/sorcer-platform/src/main/java/sorcer/util/SOS.java - błąd w ścieżkach w systemach operacyjnych opartych na Debianie
+poprawka - autor Marcin Dobosz: https://github.com/dudzislaw/SORCER/blob/5b7ab5c7d5816de7aad1dd54705a9987e2d7e0bf/core/sorcer-platform/src/main/java/sorcer/util/SOS.java
+https://github.com/dudzislaw/SORCER/blob/5b7ab5c7d5816de7aad1dd54705a9987e2d7e0bf/core/sorcer-platform/src/main/java/sorcer/util/SorcerEnv.java
