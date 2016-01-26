@@ -20,12 +20,12 @@ import static org.junit.Assert.assertTrue;
  */
 @RunWith(SorcerTestRunner.class)
 @ProjectContext("examples/coffeemaker")
-public class CoffeeMakerBeverageTest {
-	private final static Logger logger = LoggerFactory.getLogger(CoffeeMakerBeverageTest.class);
+public class CoffeeMakerPurchaseBeverageTest {
+	private final static Logger logger = LoggerFactory.getLogger(CoffeeMakerPurchaseBeverageTest.class);
 
 	private CoffeeMaker coffeeMaker;
 	private Inventory inventory;
-	private Recipe espresso, mocha, macchiato, americano, coffee1, coffee2;
+	private Recipe espresso, mocha, macchiato, americano, addRecipe1, coffee2;
 
 	@Before
 	public void setUp() throws ContextException {
@@ -64,28 +64,27 @@ public class CoffeeMakerBeverageTest {
 		americano.setAmtSugar(2);
 		americano.setAmtChocolate(0);
 
-		coffee1 = new Recipe();
-		coffee1.setName("Coffee");
-		coffee1.setPrice(50);
-		coffee1.setAmtCoffee(3);
-		coffee1.setAmtMilk(1);
-		coffee1.setAmtSugar(1);
-		coffee1.setAmtChocolate(0);
+		addRecipe1 = new Recipe();
+		addRecipe1.setName("Coffee");
+		addRecipe1.setPrice(50);
+		addRecipe1.setAmtCoffee(3);
+		addRecipe1.setAmtMilk(1);
+		addRecipe1.setAmtSugar(1);
+		addRecipe1.setAmtChocolate(0);
 	}
 
 
 	@Test
 	public void purchaseBeverage1(){
-		assertEquals(coffeeMaker.makeCoffee(coffee1, 60), 10);
+		assertEquals(coffeeMaker.makeCoffee(addRecipe1, 60), 10);
 	}
 
 	@Test
 	public void purchaseBeverage2(){
-		assertEquals(coffeeMaker.makeCoffee(coffee1, 40), 40);
+		assertEquals(coffeeMaker.makeCoffee(addRecipe1, 40), 40);
 		assertEquals(coffeeMaker.checkInventory().getCoffee(), 15);
 		assertEquals(coffeeMaker.checkInventory().getMilk(), 15);
 		assertEquals(coffeeMaker.checkInventory().getChocolate(), 15);
-
 	}
 
 	@Test
