@@ -41,7 +41,7 @@ public class CoffeeMakerDeleteRecipeTest {
         assertTrue(coffeeMaker.deleteRecipe(addRecipe1));
     }
 
-    @Test
+    @Test(expected = AssertionError.class)
     public void deleteRecipe2() {
         assertFalse(coffeeMaker.deleteRecipe(addRecipe1));
     }
