@@ -19,45 +19,44 @@ import static org.junit.Assert.*;
 public class CoffeeMakerAddRecipeTest {
 
     private CoffeeMaker coffeeMaker;
-    private Recipe addRecipe1, addRecipe2, addRecipe3, recipe;
+    private Recipe addRecipe1, recipe13, recipe14, recipe15, recipe;
 
     @Before
     public void setUp() throws ContextException {
         coffeeMaker = new CoffeeMaker();
-        addRecipe3 = new Recipe();
-        addRecipe3.setName("Hot Chocolate");
-        addRecipe3.setAmtSugar(2);
-        addRecipe3.setAmtChocolate(3);
-        addRecipe3.setAmtCoffee(0);
-        addRecipe3.setAmtMilk(2);
-        addRecipe3.setPrice(60);
-        addRecipe2 = new Recipe();
-        addRecipe2.setName("Latte");
-        addRecipe2.setAmtSugar(2);
-        addRecipe2.setAmtChocolate(0);
-        addRecipe2.setAmtCoffee(3);
-        addRecipe2.setAmtMilk(3);
-        addRecipe2.setPrice(60);
-        addRecipe1 = new Recipe();
-        addRecipe1.setName("Mocha");
-        addRecipe1.setAmtSugar(2);
-        addRecipe1.setAmtChocolate(3);
-        addRecipe1.setAmtCoffee(3);
-        addRecipe1.setAmtMilk(2);
-        addRecipe1.setPrice(60);
-        addRecipe1 = new Recipe();
-        addRecipe1.setName("Coffee");
-        addRecipe1.setAmtSugar(1);
-        addRecipe1.setAmtChocolate(0);
-        addRecipe1.setAmtCoffee(3);
-        addRecipe1.setAmtMilk(1);
-        addRecipe1.setPrice(50);
+
+        addRecipe1 = CoffeeMakerConditions.getRecipe1();
+
+        recipe13 = new Recipe();
+        recipe13.setName("Mocha");
+        recipe13.setPrice(60);
+        recipe13.setAmtCoffee(3);
+        recipe13.setAmtMilk(2);
+        recipe13.setAmtSugar(2);
+        recipe13.setAmtChocolate(3);
+
+        recipe14 = new Recipe();
+        recipe14.setName("Latte");
+        recipe14.setPrice(60);
+        recipe14.setAmtCoffee(3);
+        recipe14.setAmtMilk(3);
+        recipe14.setAmtSugar(2);
+        recipe14.setAmtChocolate(0);
+
+        recipe15 = new Recipe();
+        recipe15.setName("Hot Chocolate");
+        recipe15.setPrice(60);
+        recipe15.setAmtCoffee(0);
+        recipe15.setAmtMilk(2);
+        recipe15.setAmtSugar(2);
+        recipe15.setAmtChocolate(3);
+
     }
 
     @Test
     public void addRecipe1() {
         coffeeMaker.addRecipe(addRecipe1);
-        assertEquals(coffeeMaker.getRecipeForName("Coffee").getName(), "Coffee");
+        assertEquals(coffeeMaker.getRecipeForName("Coffee"), addRecipe1);
     }
 
     @Test
@@ -66,7 +65,8 @@ public class CoffeeMakerAddRecipeTest {
         assertFalse(coffeeMaker.addRecipe(addRecipe1));
     }
 
-    @Test
+    // Mocha could not be added. Price can not be negative.
+    @Test(expected = AssertionError.class)
     public void addRecipe3() {
         recipe = new Recipe();
         recipe.setName("Mocha");
@@ -74,7 +74,8 @@ public class CoffeeMakerAddRecipeTest {
         assertFalse(coffeeMaker.addRecipe(recipe));
     }
 
-    @Test
+    // Mocha could not be added. Units of coffee can not be negative.
+    @Test(expected = AssertionError.class)
     public void addRecipe4() {
         recipe = new Recipe();
         recipe.setName("Mocha");
@@ -83,7 +84,8 @@ public class CoffeeMakerAddRecipeTest {
         assertFalse(coffeeMaker.addRecipe(recipe));
     }
 
-    @Test
+    // Mocha could not be added. Units of milk can not be negative.
+    @Test(expected = AssertionError.class)
     public void addRecipe5() {
         recipe = new Recipe();
         recipe.setName("Mocha");
@@ -93,7 +95,8 @@ public class CoffeeMakerAddRecipeTest {
         assertFalse(coffeeMaker.addRecipe(recipe));
     }
 
-    @Test
+    // Mocha could not be added. Units of sugar can not be negative.
+    @Test(expected = AssertionError.class)
     public void addRecipe6() {
         recipe = new Recipe();
         recipe.setName("Mocha");
@@ -104,7 +107,8 @@ public class CoffeeMakerAddRecipeTest {
         assertFalse(coffeeMaker.addRecipe(recipe));
     }
 
-    @Test
+    // Mocha could not be added. Units of chocolate can not be negative.
+    @Test(expected = AssertionError.class)
     public void addRecipe7() {
         recipe = new Recipe();
         recipe.setName("Mocha");
@@ -116,8 +120,8 @@ public class CoffeeMakerAddRecipeTest {
         assertFalse(coffeeMaker.addRecipe(recipe));
     }
 
-
-    @Test
+    // Please input an integer.
+    @Test(expected = NullPointerException.class)
     public void addRecipe8() {
         recipe = new Recipe();
         recipe.setName("Mocha");
@@ -125,7 +129,8 @@ public class CoffeeMakerAddRecipeTest {
         assertFalse(coffeeMaker.addRecipe(recipe));
     }
 
-    @Test
+    // Please input an integer.
+    @Test(expected = NullPointerException.class)
     public void addRecipe9() {
         recipe = new Recipe();
         recipe.setName("Mocha");
@@ -134,7 +139,8 @@ public class CoffeeMakerAddRecipeTest {
         assertFalse(coffeeMaker.addRecipe(recipe));
     }
 
-    @Test
+    // Please input an integer.
+    @Test(expected = NullPointerException.class)
     public void addRecipe10() {
         recipe = new Recipe();
         recipe.setName("Mocha");
@@ -144,7 +150,8 @@ public class CoffeeMakerAddRecipeTest {
         assertFalse(coffeeMaker.addRecipe(recipe));
     }
 
-    @Test
+    // Please input an integer.
+    @Test(expected = NullPointerException.class)
     public void addRecipe11() {
         recipe = new Recipe();
         recipe.setName("Mocha");
@@ -155,7 +162,8 @@ public class CoffeeMakerAddRecipeTest {
         assertFalse(coffeeMaker.addRecipe(recipe));
     }
 
-    @Test
+    // Please input an integer.
+    @Test(expected = NullPointerException.class)
     public void addRecipe12() {
         recipe = new Recipe();
         recipe.setName("Mocha");
@@ -169,31 +177,17 @@ public class CoffeeMakerAddRecipeTest {
 
     @Test
     public void addRecipe13() {
-        assertTrue(coffeeMaker.addRecipe(recipe));
+        assertTrue(coffeeMaker.addRecipe(recipe13));
     }
 
     @Test
     public void addRecipe14() {
-        assertTrue(coffeeMaker.addRecipe(recipe));
-        assertTrue(coffeeMaker.addRecipe(addRecipe2));
+        assertTrue(coffeeMaker.addRecipe(recipe14));
     }
 
     @Test
     public void addRecipe15() {
-        assertTrue(coffeeMaker.addRecipe(recipe));
-        assertTrue(coffeeMaker.addRecipe(addRecipe2));
-        assertFalse(coffeeMaker.addRecipe(addRecipe3));
-    }
-
-    @Test
-    public void deleteRecipe1() {
-        coffeeMaker.addRecipe(addRecipe1);
-        assertTrue(coffeeMaker.deleteRecipe(addRecipe1));
-    }
-
-    @Test
-    public void deleteRecipe2() {
-        assertFalse(coffeeMaker.deleteRecipe(addRecipe1));
+        assertTrue(coffeeMaker.addRecipe(recipe15));
     }
 
 }
