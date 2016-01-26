@@ -24,46 +24,11 @@ public class CoffeeMakerPurchaseBeverageTest {
 	private final static Logger logger = LoggerFactory.getLogger(CoffeeMakerPurchaseBeverageTest.class);
 
 	private CoffeeMaker coffeeMaker;
-	private Inventory inventory;
-	private Recipe espresso, mocha, macchiato, americano, addRecipe1, coffee2;
+	private Recipe addRecipe1, coffee2;
 
 	@Before
 	public void setUp() throws ContextException {
 		coffeeMaker = new CoffeeMaker();
-		inventory = coffeeMaker.checkInventory();
-
-		espresso = new Recipe();
-		espresso.setName("espresso");
-		espresso.setPrice(50);
-		espresso.setAmtCoffee(6);
-		espresso.setAmtMilk(1);
-		espresso.setAmtSugar(1);
-		espresso.setAmtChocolate(0);
-
-		mocha = new Recipe();
-		mocha.setName("mocha");
-		mocha.setPrice(100);
-		mocha.setAmtCoffee(8);
-		mocha.setAmtMilk(1);
-		mocha.setAmtSugar(1);
-		mocha.setAmtChocolate(2);
-
-		macchiato = new Recipe();
-		macchiato.setName("macchiato");
-		macchiato.setPrice(40);
-		macchiato.setAmtCoffee(7);
-		macchiato.setAmtMilk(1);
-		macchiato.setAmtSugar(2);
-		macchiato.setAmtChocolate(0);
-
-		americano = new Recipe();
-		americano.setName("americano");
-		americano.setPrice(40);
-		americano.setAmtCoffee(7);
-		americano.setAmtMilk(1);
-		americano.setAmtSugar(2);
-		americano.setAmtChocolate(0);
-
 		addRecipe1 = new Recipe();
 		addRecipe1.setName("Coffee");
 		addRecipe1.setPrice(50);
@@ -98,7 +63,7 @@ public class CoffeeMakerPurchaseBeverageTest {
 		coffee2.setAmtChocolate(5);
 		coffeeMaker.addRecipe(coffee2);
 		Recipe[] recipes = coffeeMaker.getRecipes();
-		assertEquals(coffeeMaker.makeCoffee(recipes[3], 50), 50);
+		assertEquals(coffeeMaker.makeCoffee(coffee2, 50), 50);
 	}
 
 }
