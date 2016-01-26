@@ -19,31 +19,24 @@ import static org.junit.Assert.*;
 public class CoffeeMakerDeleteRecipeTest {
 
     private CoffeeMaker coffeeMaker;
-    private Recipe addRecipe1;
+    private Recipe recipe1;
 
     @Before
     public void setUp() throws ContextException {
         coffeeMaker = new CoffeeMaker();
-
-        addRecipe1 = new Recipe();
-        addRecipe1.setName("Coffee");
-        addRecipe1.setAmtSugar(1);
-        addRecipe1.setAmtChocolate(0);
-        addRecipe1.setAmtCoffee(3);
-        addRecipe1.setAmtMilk(1);
-        addRecipe1.setPrice(50);
-
-        coffeeMaker.addRecipe(addRecipe1);
+        recipe1 = CoffeeMakerConditions.getRecipe1();
+        coffeeMaker.addRecipe(recipe1);
     }
 
     @Test
     public void deleteRecipe1() {
-        assertTrue(coffeeMaker.deleteRecipe(addRecipe1));
+        assertTrue(coffeeMaker.deleteRecipe(recipe1));
     }
 
+    // There are no recipes to delete
     @Test(expected = AssertionError.class)
     public void deleteRecipe2() {
-        assertFalse(coffeeMaker.deleteRecipe(addRecipe1));
+        assertFalse(coffeeMaker.deleteRecipe(recipe1));
     }
 
 }
