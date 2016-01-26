@@ -21,7 +21,6 @@ import static org.junit.Assert.assertTrue;
 @RunWith(SorcerTestRunner.class)
 @ProjectContext("examples/coffeemaker")
 public class CoffeeMakerPurchaseBeverageTest {
-	private final static Logger logger = LoggerFactory.getLogger(CoffeeMakerPurchaseBeverageTest.class);
 
 	private CoffeeMaker coffeeMaker;
 	private Recipe addRecipe1, coffee2;
@@ -62,7 +61,6 @@ public class CoffeeMakerPurchaseBeverageTest {
 		coffee2.setAmtSugar(3);
 		coffee2.setAmtChocolate(5);
 		coffeeMaker.addRecipe(coffee2);
-		Recipe[] recipes = coffeeMaker.getRecipes();
 		assertEquals(coffeeMaker.makeCoffee(coffee2, 50), 50);
 	}
 
