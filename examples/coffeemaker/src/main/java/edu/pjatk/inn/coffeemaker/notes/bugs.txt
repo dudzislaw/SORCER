@@ -41,3 +41,7 @@ https://github.com/dudzislaw/SORCER/blob/5b7ab5c7d5816de7aad1dd54705a9987e2d7e0b
 /core/sorcer-platform/src/main/java/sorcer/util/SOS.java - błąd w ścieżkach w systemach operacyjnych opartych na Debianie
 poprawka - autor Marcin Dobosz: https://github.com/dudzislaw/SORCER/blob/5b7ab5c7d5816de7aad1dd54705a9987e2d7e0bf/core/sorcer-platform/src/main/java/sorcer/util/SOS.java
 https://github.com/dudzislaw/SORCER/blob/5b7ab5c7d5816de7aad1dd54705a9987e2d7e0bf/core/sorcer-platform/src/main/java/sorcer/util/SorcerEnv.java
+
+
+domyślna poziom produktów w maszynie ustawiony na 0:
+https://github.com/dudzislaw/SORCER/commit/bcf2d3c187944a04618056e1179d78bc1f133aca
