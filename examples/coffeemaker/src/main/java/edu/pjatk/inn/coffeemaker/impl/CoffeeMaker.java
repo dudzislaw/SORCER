@@ -22,7 +22,7 @@ public class CoffeeMaker implements CoffeeMaking, CoffeeService {
 	 */
 	private Recipe [] recipeArray;
 	/** Number of getRecipes in coffee maker */
-	private final int NUM_RECIPES = 4;
+	private final int NUM_RECIPES = 3;
 	/** Array describing if the array is full */
 	private boolean [] recipeFull;
 	/** Inventory of the coffee maker */
@@ -50,7 +50,10 @@ public class CoffeeMaker implements CoffeeMaking, CoffeeService {
 	 */
 	public boolean addRecipe(Recipe r) {
         boolean canAddRecipe = true;
-            
+
+		if(r.getAmtCoffee() < 0)
+			canAddRecipe = false;
+
         //Check if the recipe already exists
         for(int i = 0; i < NUM_RECIPES; i++) {
             if(r.equals(recipeArray[i])) {
@@ -69,7 +72,7 @@ public class CoffeeMaker implements CoffeeMaking, CoffeeService {
 	        }
 	        if(emptySpot != -1) {
 		        recipeArray[emptySpot] = r;
-		        recipeFull[emptySpot] = true;
+ 		        recipeFull[emptySpot] = true;
 	        }
 	        else {
 	        	canAddRecipe = false;
