@@ -1,0 +1,29 @@
+1) Add a Recipe - OK
+
+addRecipe15 - "Coffee could not be added." - kawa może być dodana, błąd w teście
+
+
+2) Delete a Recipe - OK
+
+
+3) Edit a Recipe - OK
+
+editRecipe1 i editRecipe2 - to są dwa identyczne testy,
+w poleceniu napisane jest, że
+editRecipe1 - "Coffee successfully added.", a
+editRecipe2 - "Coffee could not be added.", a
+
+
+4) Add Inventory - OK
+
+znaleziony został błąd w pliku: examples/coffeemaker/src/main/java/edu/pjatk/inn/coffeemaker/impl/CoffeeMaker.java
+dodawanie produktów do maszyny zostało poprawione: https://github.com/dudzislaw/SORCER/commit/fca2914e23a0be8cd8957abc963970d1dab5f802
+
+
+5) Check Inventory - OK
+
+
+6) Purchase Coffee - OK
+
+znaleziony został błąd w pliku: examples/coffeemaker/src/main/java/edu/pjatk/inn/coffeemaker/impl/CoffeeMaker.java
+zmiana stanu kawy w maszynie została poprawiona: https://github.com/dudzislaw/SORCER/commit/47e23c0744685809e19ad576b3c51636a26c33e7?diff=unified#diff-37cd776d56a85eb53d054226cac45b5d
