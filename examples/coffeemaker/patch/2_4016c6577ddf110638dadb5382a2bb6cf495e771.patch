@@ -1,0 +1,1458 @@
+From 1be3349303002ee8e15a44e9f90d47bb397bce9b Mon Sep 17 00:00:00 2001
+From: dreedyman <dennis.reedy@gmail.com>
+Date: Wed, 20 Jan 2016 13:10:14 -0500
+Subject: [PATCH 1/3] Mods for bean interfaces and exception reporting
+
+---
+ build.gradle                                       |   2 +-
+ .../main/java/sorcer/core/proxy/ProviderProxy.java |  26 +-
+ .../main/java/sorcer/core/exertion/AltMogram.java  |   2 +-
+ .../main/java/sorcer/core/exertion/LoopMogram.java |   8 +-
+ .../main/java/sorcer/core/exertion/OptMogram.java  |   8 +-
+ .../sorcer/core/provider/ProviderDelegate.java     | 301 ++++++------
+ .../sorcer/core/provider/exerter/ServiceShell.java |  18 +-
+ .../sorcer/core/signature/ServiceSignature.java    |   1 -
+ .../java/sorcer/jini/jeri/SorcerILFactory.java     | 536 +++++++++++----------
+ .../src/main/java/sorcer/service/Job.java          |  15 +-
+ .../main/java/sorcer/service/ServiceExertion.java  |  18 +-
+ .../src/main/java/sorcer/util/SorcerEnv.java       |   4 +-
+ 12 files changed, 510 insertions(+), 429 deletions(-)
+
+diff --git a/build.gradle b/build.gradle
+index 88da618..4e8a1c8 100755
+--- a/build.gradle
++++ b/build.gradle
+@@ -20,7 +20,7 @@ int ndx = ref.lastIndexOf("/")
+ String branch = ref.substring(ndx+1).trim()
+ String branchRef = branch.equals("master")?"":"-$branch"
+ 
+-version = "5.3.25$branchRef"
++version = "5.3.26$branchRef"
+ 
+ apply plugin: 'idea'
+ idea {
+diff --git a/core/sorcer-dl/src/main/java/sorcer/core/proxy/ProviderProxy.java b/core/sorcer-dl/src/main/java/sorcer/core/proxy/ProviderProxy.java
+index aebf836..d70c6df 100755
+--- a/core/sorcer-dl/src/main/java/sorcer/core/proxy/ProviderProxy.java
++++ b/core/sorcer-dl/src/main/java/sorcer/core/proxy/ProviderProxy.java
+@@ -87,7 +87,10 @@
+ 	 *         implements <code>RemoteMethodControl</code> if the given
+ 	 *         <code>server</code> does.
+ 	 */
+-	public static Object wrapServiceProxy(Object proxy, Uuid proxyID, Object adminProxy, Class... additionalInterfaces) {
++	public static Object wrapServiceProxy(Object proxy,
++                                          Uuid proxyID,
++                                          Object adminProxy,
++                                          Class... additionalInterfaces) {
+ 
+ 		if (proxy == null)
+ 			throw new NullPointerException("Cannot have a server which is null");
+@@ -105,7 +108,7 @@ public static Object wrapServiceProxy(Object proxy, Uuid proxyID, Object adminPr
+ 	public static Object wrapAdminProxy(Object adminProxy, Uuid adminProxyID, Class... additionalInterfaces) {
+ 
+ 		if (adminProxy == null)
+-			throw new NullPointerException("Cannot have a admin server which is null");
++			throw new NullPointerException("Cannot have an admin server which is null");
+ 
+ 		ReferentUuidInvocationHandler handler =
+                 (adminProxy instanceof RemoteMethodControl) ?
+@@ -123,7 +126,9 @@ public static Object wrapAdminProxy(Object adminProxy, Uuid adminProxyID, Class.
+ 		protected final Uuid proxyID;
+ 		protected final Object adminProxy;
+ 
+-		public ReferentUuidInvocationHandler(Object proxy, Uuid proxyID, Object adminProxy) {
++		public ReferentUuidInvocationHandler(Object proxy,
++                                             Uuid proxyID,
++                                             Object adminProxy) {
+ 			this.proxy = proxy;
+ 			this.proxyID = proxyID;
+ 			this.adminProxy = adminProxy;
+@@ -205,7 +210,16 @@ public Object invoke(Object server, Method m, Object[] args) throws Throwable {
+         }
+ 
+         protected Object doInvoke(Object server, String selector, Method m, Object[] args) throws IllegalAccessException, InvocationTargetException, RemoteException {
+-            return m.invoke(proxy, args);
++            try {
++                if(logger.isTraceEnabled()) {
++					String indent = "    ";
++					logger.trace("Invoking\n{}{}", indent, m);
++				}
++                return m.invoke(proxy, args);
++            } catch (IllegalAccessException | InvocationTargetException e) {
++                logger.error("Failed invoking {}", m, e);
++                throw e;
++            }
+         }
+ 
+         private void readObject(ObjectInputStream s) throws IOException, ClassNotFoundException {
+@@ -237,7 +251,9 @@ private void readObjectNoData() throws InvalidObjectException {
+ 	private static class ConstrainableInvocationHandler extends ReferentUuidInvocationHandler {
+ 		private static final long serialVersionUID = -1L;
+ 
+-		public ConstrainableInvocationHandler(Object server, Uuid proxyID, Object adminProxy) {
++		public ConstrainableInvocationHandler(Object server,
++                                              Uuid proxyID,
++                                              Object adminProxy) {
+ 			super(server, proxyID, adminProxy);
+ 		}
+ 
+diff --git a/core/sorcer-platform/src/main/java/sorcer/core/exertion/AltMogram.java b/core/sorcer-platform/src/main/java/sorcer/core/exertion/AltMogram.java
+index c2ee9a5..5eed075 100644
+--- a/core/sorcer-platform/src/main/java/sorcer/core/exertion/AltMogram.java
++++ b/core/sorcer-platform/src/main/java/sorcer/core/exertion/AltMogram.java
+@@ -133,7 +133,7 @@ public void reset(int state) {
+ 	}
+ 
+ 	@Override
+-	public List<ThrowableTrace> getExceptions(List<ThrowableTrace> exceptions) throws RemoteException {
++	public List<ThrowableTrace> getExceptions(List<ThrowableTrace> exceptions) {
+ 		for (Exertion ext : optExertions) {
+ 			exceptions.addAll(((ServiceExertion)ext).getExceptions(exceptions));
+ 		}
+diff --git a/core/sorcer-platform/src/main/java/sorcer/core/exertion/LoopMogram.java b/core/sorcer-platform/src/main/java/sorcer/core/exertion/LoopMogram.java
+index 6054707..b2a791b 100644
+--- a/core/sorcer-platform/src/main/java/sorcer/core/exertion/LoopMogram.java
++++ b/core/sorcer-platform/src/main/java/sorcer/core/exertion/LoopMogram.java
+@@ -185,8 +185,12 @@ public boolean isConditional() {
+ 	}
+ 
+ 	@Override
+-	public List<ThrowableTrace> getExceptions(List<ThrowableTrace> exceptions) throws RemoteException {
+-		exceptions.addAll(target.getExceptions());
++	public List<ThrowableTrace> getExceptions(List<ThrowableTrace> exceptions) {
++		try {
++			exceptions.addAll(target.getExceptions());
++		} catch (RemoteException e) {
++			exceptions.add(new ThrowableTrace("Problem while collecting exceptions", e));
++		}
+ 		exceptions.addAll(this.getExceptions());
+ 		return exceptions;
+ 	}
+diff --git a/core/sorcer-platform/src/main/java/sorcer/core/exertion/OptMogram.java b/core/sorcer-platform/src/main/java/sorcer/core/exertion/OptMogram.java
+index a25742f..b3ecf73 100644
+--- a/core/sorcer-platform/src/main/java/sorcer/core/exertion/OptMogram.java
++++ b/core/sorcer-platform/src/main/java/sorcer/core/exertion/OptMogram.java
+@@ -124,8 +124,12 @@ public void reset(int state) {
+ 	}
+ 	
+ 	@Override
+-	public List<ThrowableTrace> getExceptions(List<ThrowableTrace> exceptions) throws RemoteException {
+-		exceptions.addAll(target.getExceptions());
++	public List<ThrowableTrace> getExceptions(List<ThrowableTrace> exceptions) {
++		try {
++			exceptions.addAll(target.getExceptions());
++		} catch (RemoteException e) {
++			exceptions.add(new ThrowableTrace("Problem while collecting exceptions", e));
++		}
+ 		exceptions.addAll(this.getExceptions());
+ 		return exceptions;
+ 	}
+diff --git a/core/sorcer-platform/src/main/java/sorcer/core/provider/ProviderDelegate.java b/core/sorcer-platform/src/main/java/sorcer/core/provider/ProviderDelegate.java
+index 862eca9..aa7a27d 100755
+--- a/core/sorcer-platform/src/main/java/sorcer/core/provider/ProviderDelegate.java
++++ b/core/sorcer-platform/src/main/java/sorcer/core/provider/ProviderDelegate.java
+@@ -245,7 +245,7 @@
+ 	/**
+ 	 * An outer service proxy, by default the proxy of this provider, is used
+ 	 * by service requestors if provider's smart proxy is absent. At least
+-	 * two generic Remote interface: {@link Server} and {@link Provider} are
++	 * two generic Remote interface: {@link Service} and {@link Provider} are
+ 	 * implemented by outer proxies of all SORCER service providers. Each SORCER
+ 	 * provider uses outer proxy to actually call directly its provider and make
+ 	 * redirected calls using its inner proxy (redirected remote invocations).
+@@ -281,7 +281,7 @@
+ 	 * Exposed service type components. A key is an interface and a value its
+ 	 * implementing service-object.
+ 	 */
+-	private Map<Class, Object> serviceComponents;
++	private Map<Class<?>, Object> serviceComponents;
+ 
+ 	/**
+ 	 * Indicates a single threaded execution for service beans or providers
+@@ -606,7 +606,11 @@ protected void configure(Configuration jconfig) throws ExportException {
+             // e.printStackTrace();
+         }
+         if ((serviceTypes != null) && (serviceTypes.length > 0)) {
+-            publishedServiceTypes = serviceTypes;
++            Set<Class<?>> toPublish = new HashSet<>();
++            for(Class<?> c : serviceTypes) {
++                toPublish.addAll(getAllInterfaces(c));
++            }
++            publishedServiceTypes = toPublish.toArray(new Class<?>[toPublish.size()]);
+             logger.info("*** published services: {}", Arrays.toString(publishedServiceTypes));
+         }
+         // get exporters for outer and inner proxy
+@@ -628,10 +632,22 @@ protected void configure(Configuration jconfig) throws ExportException {
+         exports.put(outerProxy, outerExporter);
+         logger.debug(">>>>>>>>>>> exported outerProxy: \n{}, outerExporter: \n{}", outerProxy, outerExporter);
+ 
+-        logger.info("PROXIES >>>>> provider: {}\nsmart: {}\nouter: {}\ninner: {}\nadmin: {}",
++        logger.info("PROXIES >>>>>\nprovider: {}\nsmart: {}\nouter: {}\ninner: {}\nadmin: {}",
+                     providerProxy, smartProxy, outerProxy, innerProxy, adminProxy);
+     }
+ 
++    private Collection<Class<?>> getAllInterfaces(Class<?> c) {
++        Set<Class<?>> set = new HashSet<>();
++        if(!c.getPackage().getName().startsWith("java")) {
++            set.add(c);
++            for (Class<?> i : c.getInterfaces()) {
++                set.add(i);
++                set.addAll(getAllInterfaces(i));
++            }
++        }
++        return set;
++    }
++
+     private void initThreadGroups() {
+         namedGroup = new ThreadGroup("Provider Group: " + getProviderName());
+         namedGroup.setDaemon(true);
+@@ -1469,8 +1485,7 @@ private Entry getSorcerServiceTypeEntry() throws UnknownHostException {
+ 			serviceType.iconName = config.getIconName();
+ 
+ 			if (publishedServiceTypes == null && spaceEnabled) {
+-				logger.error(getProviderName()
+-						+ " does NOT declare its space interfaces");
++				logger.error("{} does NOT declare its space interfaces", getProviderName());
+ 				provider.destroy();
+ 			}
+ 			if (publishedServiceTypes != null) {
+@@ -1717,9 +1732,7 @@ public boolean isValidTask(Exertion servicetask) throws ExertionException, Conte
+ 
+ 		if (publishedServiceTypes == null) {
+ 			servicetask.getContext().reportException(
+-					new ExertionException(
+-							"No published interfaces defined by: "
+-									+ getProviderName()));
++					new ExertionException("No published interfaces defined by: "+ getProviderName()));
+ 			return false;
+ 		} else {
+ 			for (int i = 0; i < publishedServiceTypes.length; i++) {
+@@ -1729,11 +1742,10 @@ public boolean isValidTask(Exertion servicetask) throws ExertionException, Conte
+ 			}
+ 		}
+ 		servicetask.getContext().reportException(
+-				new ExertionException(
+-						"Not valid task for published service types: \n"
+-								+ Arrays.toString(publishedServiceTypes)
+-								+ "\nwith Signature: \n"
+-								+ servicetask.getProcessSignature()));
++			new ExertionException("Not valid task for published service types: \n"
++								  + Arrays.toString(publishedServiceTypes)
++								  + "\nwith Signature: \n"
++								  + servicetask.getProcessSignature()));
+ 		return false;
+ 	}
+ 
+@@ -2118,33 +2130,32 @@ else if (Paths.get(filename).toFile().exists())
+ 					}
+ 				}
+ 
+-				String expandingEnv = null;
+-					try {
+-						if (jiniConfig != null)
+-							expandingEnv = (String) jiniConfig.getEntry(
+-									ServiceProvider.COMPONENT, "expandingEnv",
+-									String.class);
+-					} catch (ConfigurationException e) {
+-						expandingEnv = null;
+-					}
+-					if (expandingEnv != null) {
+-						props = Sorcer.loadProperties(expandingEnv, filename);
+-					}
+-					else {
+-						props = Sorcer.loadProperties(is);
+-						is.close();
+-						// copy loaded provider's properties to global Env
+-						// properties
+-						Sorcer.updateFromProperties(props);
+-					}
++                String expandingEnv = null;
++                try {
++                    if (jiniConfig != null)
++                        expandingEnv = (String) jiniConfig.getEntry(ServiceProvider.COMPONENT,
++                                                                    "expandingEnv",
++                                                                    String.class);
++                } catch (ConfigurationException e) {
++                    expandingEnv = null;
++                }
++                if (expandingEnv != null) {
++                    props = Sorcer.loadProperties(expandingEnv, filename);
++                } else {
++                    props = Sorcer.loadProperties(is);
++                    is.close();
++                    // copy loaded provider's properties to global Env
++                    // properties
++                    Sorcer.updateFromProperties(props);
++                }
+ //					logger.debug("*** loaded provider properties: /configs/" + filename + ":\n"
+ //							+ GenericUtil.getPropertiesString(props));
+-			} catch (Exception ex) {
+-				logger.warn("Not able to load provider's properties: " + filename, ex);
+-			}
+-		}
++            } catch (Exception ex) {
++                logger.warn("Not able to load provider's properties: " + filename, ex);
++            }
++        }
+ 
+-		public Properties getProviderProperties() {
++        public Properties getProviderProperties() {
+ 			return props;
+ 		}
+ 
+@@ -2448,8 +2459,7 @@ public Object createAdmin() {
+ 		if (adminProxy != null)
+ 			return adminProxy;
+ 		try {
+-            adminProxy = ProviderProxy.wrapAdminProxy(outerProxy,
+-					getAdminProviderUuid());
++            adminProxy = ProviderProxy.wrapAdminProxy(outerProxy, getAdminProviderUuid());
+         } catch (Exception e) {
+             logger.warn("No admin proxy created by: {}", provider, e);
+         }
+@@ -2459,9 +2469,9 @@ public Object createAdmin() {
+     public Object getAdminProxy() {
+         try {
+             providerProxy = ProviderProxy.wrapServiceProxy(adminProxy,
+-					getProviderUuid(),
+-					adminProxy,
+-					Administrable.class);
++                                                           getProviderUuid(),
++                                                           adminProxy,
++                                                           Administrable.class);
+         } catch (Exception e) {
+ 			logger.warn("No admin proxy created by: {}", provider, e);
+ 		}
+@@ -2491,17 +2501,20 @@ public Object getProxy() {
+ 					((Partnership) partner).setInner(innerProxy);
+ 					((Partnership) partner).setAdmin(adminProxy);
+ 				}
+-				providerProxy = ProviderProxy.wrapServiceProxy(outerProxy,
+-						getProviderUuid(), adminProxy, publishedServiceTypes);
+-				return providerProxy;
+-			} else if (smartProxy instanceof Partnership) {
+-				((Partnership) smartProxy).setInner(outerProxy);
+-				((Partnership) smartProxy).setAdmin(adminProxy);
+-			}
+-			providerProxy = ProviderProxy.wrapServiceProxy(smartProxy,
+-					getProviderUuid(), adminProxy);
+-		} catch (ProviderException e) {
+-			logger.warn("No proxy created by: {}", provider, e);
++                providerProxy = ProviderProxy.wrapServiceProxy(outerProxy,
++                                                               getProviderUuid(),
++                                                               adminProxy,
++                                                               publishedServiceTypes);
++                return providerProxy;
++            } else if (smartProxy instanceof Partnership) {
++                ((Partnership) smartProxy).setInner(outerProxy);
++                ((Partnership) smartProxy).setAdmin(adminProxy);
++            }
++            providerProxy = ProviderProxy.wrapServiceProxy(smartProxy,
++                                                           getProviderUuid(),
++                                                           adminProxy);
++        } catch (ProviderException e) {
++            logger.warn("No proxy created by: {}", provider, e);
+ 		}
+ 		return providerProxy;
+ 	}
+@@ -2536,129 +2549,133 @@ public void setInner(Object innerProxy) throws ProviderException {
+ 	 * accepts the exported inner proxy.
+ 	 * </ol>
+ 	 * 
+-	 * @param config
+-	 *            the configuration to use for supplying the exporter
+-	 * @return the exporter to use to export this server
+-	 * @throws ConfigurationException
+-	 *             if a problem occurs retrieving entries from the configuration
++	 * @param config the configuration to use for supplying the exporter
+ 	 */
+ 	private void getExporters(Configuration config) {
+ 		try {
+-			String exporterInterface = Sorcer.getProperty(P_EXPORTER_INTERFACE);
+-			try {
+-				exporterInterface = (String) config.getEntry(
+-						ServiceProvider.COMPONENT, EXPORTER_INTERFACE,
+-						String.class, SorcerEnv.getLocalHost().getHostAddress());
++            String exporterInterface = Sorcer.getProperty(P_EXPORTER_INTERFACE);
++            try {
++                exporterInterface = (String) config.getEntry(ServiceProvider.COMPONENT,
++                                                             EXPORTER_INTERFACE,
++                                                             String.class,
++                                                             SorcerEnv.getLocalHost().getHostAddress());
+ 			} catch (Exception e) {
+ 				// do nothng
+ 			}
+-			logger.info(">>>>> exporterInterface: " + exporterInterface);
++			logger.info(">>>>> exporterInterface: {}", exporterInterface);
+ 
+-			int exporterPort = 0;
++			int exporterPort;
+ 			String port = Sorcer.getProperty(P_EXPORTER_PORT);
+ 			if (port != null)
+ 				exporterPort = Integer.parseInt(port);
+             else
+-                exporterPort = (Integer) config.getEntry(
+-                    ServiceProvider.COMPONENT, EXPORTER_PORT,
+-                    Integer.class, 0);
+-			logger.info(">>>>> exporterPort: " + exporterPort);
++                exporterPort = (Integer) config.getEntry(ServiceProvider.COMPONENT,
++                                                         EXPORTER_PORT,
++                                                         Integer.class,
++                                                         0);
++			logger.info(">>>>> exporterPort: {}", exporterPort);
+ 
+ 			try {
+ 				// check if not set by the provider
+ 				if (smartProxy == null) {
+ 					// initialize smart proxy
+ 					smartProxy = config.getEntry(ServiceProvider.COMPONENT,
+-							SMART_PROXY, Object.class, null);
++												 SMART_PROXY,
++												 Object.class,
++												 null);
+ 				}
+ 			} catch (Exception e) {
+ 				logger.warn(">>>>> NO SMART PROXY specified", e);
+ 				smartProxy = null;
+ 			}
+ 
+-			List<Object> allBeans = new ArrayList<Object>();
+-			// find it out if service bean instances are available
+-			Object[] beans = (Object[]) Config.getNonNullEntry(config,
+-					ServiceProvider.COMPONENT, BEANS, Object[].class,
+-					new Object[] {});
++			List<Object> allBeans = new ArrayList<>();
++            // find it out if service bean instances are available
++            Object[] beans = (Object[]) Config.getNonNullEntry(config,
++                                                               ServiceProvider.COMPONENT,
++                                                               BEANS,
++                                                               Object[].class,
++                                                               new Object[] {});
+ 			if (beans.length > 0) {
+-				logger.debug("*** service beans by " + getProviderName()
+-						+ "\nfor: " + Arrays.toString(beans));
+-				for (int i = 0; i < beans.length; i++) {
+-					allBeans.add(beans[i]);
+-					exports.put(beans[i], this);
+-				}
++				logger.debug("*** service beans by {}\nfor: {}", getProviderName(), Arrays.toString(beans));
++                for (Object bean : beans) {
++                    allBeans.add(bean);
++                    exports.put(bean, this);
++                }
+ 			}
+ 
+-			// find it out if data service bean instances are available
+-			Object[] dataBeans = (Object[]) Config.getNonNullEntry(config,
+-					ServiceProvider.COMPONENT, DATA_BEANS, Object[].class,
+-					new Object[] {}, getProviderProperties());
+-			if (dataBeans.length > 0) {
+-				logger.debug("*** data service beans by " + getProviderName()
+-						+ "\nfor: " + Arrays.toString(dataBeans));
+-				for (int i = 0; i < dataBeans.length; i++) {
+-					allBeans.add(dataBeans[i]);
+-					exports.put(dataBeans[i], this);
+-				}
++            // find it out if data service bean instances are available
++            Object[] dataBeans = (Object[]) Config.getNonNullEntry(config,
++                                                                   ServiceProvider.COMPONENT,
++                                                                   DATA_BEANS,
++                                                                   Object[].class,
++                                                                   new Object[] {},
++                                                                   getProviderProperties());
++            if (dataBeans.length > 0) {
++				logger.debug("*** data service beans by {}\nfor: {}", getProviderName(), Arrays.toString(dataBeans));
++                for (Object dataBean : dataBeans) {
++                    allBeans.add(dataBean);
++                    exports.put(dataBean, this);
++                }
+ 			}
+ 
+-			// find it out if service classes are available
+-			Class[] beanClasses = (Class[]) Config.getNonNullEntry(config,
+-					ServiceProvider.COMPONENT, BEAN_CLASSES, Class[].class,
+-					new Class[] {});
++            // find it out if service classes are available
++            Class[] beanClasses = (Class[]) Config.getNonNullEntry(config,
++                                                                   ServiceProvider.COMPONENT,
++                                                                   BEAN_CLASSES,
++                                                                   Class[].class,
++                                                                   new Class[] {});
+ 			if (beanClasses.length > 0) {
+-				logger.debug("*** service bean classes by " + getProviderName()
+-						+ " for: \n" + Arrays.toString(beanClasses));
+-				for (int i = 0; i < beanClasses.length; i++)
+-					allBeans.add(instantiate(beanClasses[i]));
++				logger.debug("*** service bean classes by {} for: \n{}", getProviderName(), Arrays.toString(beanClasses));
++                for (Class beanClass : beanClasses)
++                    allBeans.add(instantiate(beanClass));
+ 			}
+ 
+ 			// find it out if Groovy scripts are available
+-			String[] scriptlets = (String[]) Config.getNonNullEntry(config,
+-					ServiceProvider.COMPONENT, SCRIPTLETS, String[].class,
+-					new String[] {});
+-			if (scriptlets.length > 0) {
+-				logger.debug("*** service scriptlets by " + getProviderName()
+-						+ " for: \n" + Arrays.toString(scriptlets));
+-				for (int i = 0; i < scriptlets.length; i++)
+-					allBeans.add(instantiateScriplet(scriptlets[i]));
+-			}
+-
+-            exporterFactory = (AbstractExporterFactory) config.getEntry(ServiceProvider.COMPONENT, "exporterFactory", AbstractExporterFactory.class, null);
++            String[] scriptlets = (String[]) Config.getNonNullEntry(config,
++                                                                    ServiceProvider.COMPONENT,
++                                                                    SCRIPTLETS,
++                                                                    String[].class,
++                                                                    new String[] {});
++            if (scriptlets.length > 0) {
++				logger.debug("*** service scriptlets by {} for: \n{}", getProviderName(), Arrays.toString(scriptlets));
++                for (String scriptlet : scriptlets)
++                    allBeans.add(instantiateScriplet(scriptlet));
++			}
++
++            exporterFactory = (AbstractExporterFactory) config.getEntry(ServiceProvider.COMPONENT,
++                                                                        "exporterFactory",
++                                                                        AbstractExporterFactory.class,
++                                                                        null);
+             if (exporterFactory == null)
+                 exporterFactory = ExporterFactories.EXPORTER;
+ 
+ 			if (allBeans.size() > 0) {
+-				logger.debug("*** all beans by: " + getProviderName()
+-						+ " for: \n" + allBeans);
++				logger.debug("*** all beans by: {} for: \n{}", getProviderName(), allBeans);
+ 				serviceBeans = allBeans.toArray();
+ 				initServiceBeans(serviceBeans);
+                 SorcerILFactory ilFactory = new SorcerILFactory(serviceComponents, implClassLoader);
+                 ilFactory.setRemoteLogging(remoteLogging);
+                 outerExporter = exporterFactory.get(ilFactory);
++                logger.info("{}, {}", outerExporter, ((BasicJeriExporter)outerExporter).getInvocationLayerFactory().getClass().getName());
+ 			} else {
+-				logger.info("*** NO beans used by " + getProviderName());
+-				outerExporter = (Exporter) config.getEntry(
+-						ServiceProvider.COMPONENT,
+-						EXPORTER,
+-						Exporter.class,
+-						null);
++				logger.info("*** NO beans used by {}", getProviderName());
++                outerExporter = (Exporter) config.getEntry(ServiceProvider.COMPONENT,
++                                                           EXPORTER,
++                                                           Exporter.class,
++                                                           null);
+ 				if (outerExporter == null) {
+                     outerExporter = exporterFactory.get();
+ 				}
+-                logger.info("current exporter: "
+-                        + outerExporter.toString());
+-
+-				try {
+-					partnerExporter = (Exporter) Config.getNonNullEntry(config,
+-							ServiceProvider.COMPONENT, SERVER_EXPORTER,
+-							Exporter.class);
++                logger.info("current exporter: {}", outerExporter.toString());
++                try {
++                    partnerExporter = (Exporter) Config.getNonNullEntry(config,
++                                                                        ServiceProvider.COMPONENT, SERVER_EXPORTER,
++                                                                        Exporter.class);
+ 					if (partnerExporter == null) {
+ 						logger.warn("NO provider inner exporter defined!!!");
+ 					} else {
+-						logger.debug("your partner exporter: "
+-								+ partnerExporter);
++						logger.debug("your partner exporter: {}", partnerExporter);
+ 					}
+ 				} catch (ConfigurationException e) {
+ 					// do nothing
+@@ -2688,39 +2705,31 @@ private static void callProviders(Object[] serviceBeans) {
+ 	 * @param serviceBeans
+ 	 *            service objects exposing their interface types
+ 	 */
+-	private void initServiceBeans(Object[] serviceBeans) {
+-		if (serviceBeans == null)
+-			try {
+-				throw new NullPointerException("No service beans defined by: "
+-						+ provider.getProviderName());
+-			} catch (RemoteException e) {
+-				// should never happen as provider is a local object
+-				throw new RuntimeException(e);
+-			}
++    private void initServiceBeans(Object[] serviceBeans) {
++        if (serviceBeans == null)
++            throw new NullPointerException("No service beans defined by: "+ getProviderName());
+ 
+ 		callProviders(serviceBeans);
+-
+-		serviceComponents = new Hashtable<Class, Object>();
++		serviceComponents = new HashMap<>();
+ 
+ 		if (serviceComponents.size() == 1) {
+ 			for (Object serviceBean : serviceBeans) {
+ 				Class[] interfaces = serviceBean.getClass().getInterfaces();
+-				logger.debug("service component interfaces" + Arrays.toString(interfaces));
+-				List<Class> exposedInterfaces = new LinkedList<Class>();
++				logger.debug("service component interfaces {}", Arrays.toString(interfaces));
++				List<Class> exposedInterfaces = new LinkedList<>();
+ 				for (Class publishedType : publishedServiceTypes) {
+ 					if (publishedType.isInstance(serviceBean)) {
+ 						serviceComponents.put(publishedType, serviceBean);
+ 						exposedInterfaces.add(publishedType);
+ 						for (Class iface : publishedType.getInterfaces()) {
+-							if (!iface.equals(Remote.class)
+-									&& !iface.equals(Serializable.class)) {
++							if (!iface.equals(Remote.class) && !iface.equals(Serializable.class)) {
+ 								serviceComponents.put(iface, serviceBean);
+ 								exposedInterfaces.add(iface);
+ 							}
+ 						}
+ 					}
+ 				}
+-				logger.debug("service component exposed interfaces" + exposedInterfaces);
++				logger.debug("service component exposed interfaces {}", exposedInterfaces);
+ 			}
+ 		} else {
+ 			for (Class publishedType : publishedServiceTypes) {
+@@ -2731,7 +2740,7 @@ private void initServiceBeans(Object[] serviceBeans) {
+ 				}
+ 			}
+ 		}
+-		logger.debug("service components" + serviceComponents);
++		logger.info("service components: {}", serviceComponents);
+ 	}
+ 
+ 	private Object instantiateScriplet(String scripletFilename)
+diff --git a/core/sorcer-platform/src/main/java/sorcer/core/provider/exerter/ServiceShell.java b/core/sorcer-platform/src/main/java/sorcer/core/provider/exerter/ServiceShell.java
+index 50e9cb6..0e8d940 100644
+--- a/core/sorcer-platform/src/main/java/sorcer/core/provider/exerter/ServiceShell.java
++++ b/core/sorcer-platform/src/main/java/sorcer/core/provider/exerter/ServiceShell.java
+@@ -45,16 +45,15 @@
+ import sorcer.core.signature.NetletSignature;
+ import sorcer.core.signature.ObjectSignature;
+ import sorcer.core.signature.ServiceSignature;
+-import sorcer.core.signature.ServiceSignature.*;
+ import sorcer.jini.lookup.ProviderID;
+ import sorcer.netlet.ScriptExerter;
+ import sorcer.service.*;
+ import sorcer.service.Exec.State;
++import sorcer.service.Signature.ReturnPath;
+ import sorcer.service.Strategy.Access;
+ import sorcer.service.modeling.Model;
+ import sorcer.service.txmgr.TransactionManagerAccessor;
+ import sorcer.util.Sorcer;
+-import sorcer.service.Signature.ReturnPath;
+ 
+ import java.io.File;
+ import java.rmi.RemoteException;
+@@ -78,7 +77,7 @@
+ 	private File mogramSource;
+ 	private Transaction transaction;
+ 	private static MutualExclusion locker;
+-	// a refrence to a provider running this mogram
++	// a reference to a provider running this mogram
+ 	private Exerter provider;
+ 	private static LoadingCache<Signature, Object> proxies;
+ 
+@@ -104,12 +103,11 @@ public void init(Provider provider) {
+ 	private static void setupProxyCache() {
+ 		if (proxies == null) {
+ 			proxies = CacheBuilder.newBuilder()
+-					.maximumSize(20)
+-					.expireAfterWrite(30, TimeUnit.MINUTES)
+-//				.removalListener(null)
+-					.build(new CacheLoader<Signature, Object>() {
+-						public Object load(Signature signature) {
+-							return Accessor.get().getService(signature);
++						  .maximumSize(20)
++						  .expireAfterWrite(30, TimeUnit.MINUTES)
++						  .build(new CacheLoader<Signature, Object>() {
++							  public Object load(Signature signature) {
++								  return Accessor.get().getService(signature);
+ 						}
+ 					});
+ 		}
+@@ -406,7 +404,7 @@ private Exertion dispatchExertion(ServiceExertion exertion, String providerName,
+ 			}
+ 			provider = ((NetSignature) signature).getProvider();
+ 			if (provider == null) {
+-                // check proxy cache amd ping with a provider name
++                // check proxy cache and ping with a provider name
+ 				try {
+ 					provider = proxies.get(signature);
+ 					((Provider)provider).getProviderName();
+diff --git a/core/sorcer-platform/src/main/java/sorcer/core/signature/ServiceSignature.java b/core/sorcer-platform/src/main/java/sorcer/core/signature/ServiceSignature.java
+index 9365142..83faa5e 100644
+--- a/core/sorcer-platform/src/main/java/sorcer/core/signature/ServiceSignature.java
++++ b/core/sorcer-platform/src/main/java/sorcer/core/signature/ServiceSignature.java
+@@ -30,7 +30,6 @@
+ import sorcer.util.Log;
+ 
+ import java.io.IOException;
+-import java.io.Serializable;
+ import java.lang.reflect.Constructor;
+ import java.lang.reflect.InvocationTargetException;
+ import java.lang.reflect.Method;
+diff --git a/core/sorcer-platform/src/main/java/sorcer/jini/jeri/SorcerILFactory.java b/core/sorcer-platform/src/main/java/sorcer/jini/jeri/SorcerILFactory.java
+index b9937af..2258cbc 100755
+--- a/core/sorcer-platform/src/main/java/sorcer/jini/jeri/SorcerILFactory.java
++++ b/core/sorcer-platform/src/main/java/sorcer/jini/jeri/SorcerILFactory.java
+@@ -20,10 +20,7 @@
+ import net.jini.core.constraint.MethodConstraints;
+ import net.jini.core.constraint.RemoteMethodControl;
+ import net.jini.core.transaction.Transaction;
+-import net.jini.jeri.BasicILFactory;
+-import net.jini.jeri.BasicInvocationDispatcher;
+-import net.jini.jeri.InvocationDispatcher;
+-import net.jini.jeri.ServerCapabilities;
++import net.jini.jeri.*;
+ import net.jini.security.proxytrust.ProxyTrust;
+ import net.jini.security.proxytrust.ServerProxyTrust;
+ import net.jini.security.proxytrust.TrustEquivalence;
+@@ -41,6 +38,7 @@
+ import java.rmi.server.ExportException;
+ import java.security.Permission;
+ import java.util.*;
++import java.util.concurrent.ConcurrentHashMap;
+ 
+ import static sorcer.core.SorcerConstants.*;
+ 
+@@ -57,189 +55,201 @@
+  * {@link Service}s with either
+  * {@link sorcer.core.provider.ServiceProvider}
+  */
++
+ /**
+  * @author Mike Sobolewski
+  */
+ public class SorcerILFactory extends BasicILFactory {
+-	protected final Logger logger = LoggerFactory.getLogger(BasicILFactory.class
+-			.getName());
+-	/**
+-	 * Exposed service type map. A key is an interface and a value its
+-	 * implementing object.
+-	 */
+-	protected Map serviceBeanMap;
+-
+-	/**
+-	 * Creates a <code>SorcerILFactory</code> instance with no server
+-	 * constraints, no permission class, a <code>null</code> class loader and
+-	 * service beans.
+-	 **/
+-	public SorcerILFactory() {
+-		super();
+-	}
+-
+-	/**
+-	 * Creates a <code>SorcerILFactory</code> instance with no server
+-	 * constraints, no permission class, and a <code>null</code> class loader.
+-	 * 
+-	 * @param serviceBeans
+-	 *            the objects to be exposed as services by the dispatcher of
+-	 *            this ILFactory
+-	 * 
+-	 */
+-	public SorcerILFactory(Map serviceBeans, ClassLoader loader) {
+-		super(null, null, loader);
+-		serviceBeanMap = serviceBeans;
+-	}
+-
+-	/**
+-	 * Creates a <code>SorcerILFactory</code> with the specified server
+-	 * constraints, permission class, and a <code>null</code> class loader.
+-	 * 
+-	 * @param serverConstraints
+-	 *            the server constraints, or <code>null</code>
+-	 * @param permissionClass
+-	 *            the permission class, or <code>null</code>
+-	 * @param serviceBeans
+-	 *            the objects to be exposed as services by the dispatcher of
+-	 *            this ILFactory
+-	 * @throws IllegalArgumentException
+-	 *             if the permission class is abstract, is not a subclass of
+-	 *             {@link Permission}, or does not have a public constructor
+-	 *             that has either one <code>String</code> parameter or one
+-	 *             {@link Method}parameter and has no declared exceptions
+-	 */
+-	public SorcerILFactory(MethodConstraints serverConstraints,
+-			Class permissionClass, Map serviceBeans)
+-			throws IllegalArgumentException {
+-		super(serverConstraints, permissionClass, null);
+-		serviceBeanMap = serviceBeans;
+-	}
+-
+-	/**
+-	 * Creates a <code>SorcerILFactory</code> with the specified server
+-	 * constraints, permission class, and class loader. The server constraints,
+-	 * if not <code>null</code>, are used to enforce minimum constraints for
+-	 * remote calls. The permission class, if not <code>null</code>, is used to
+-	 * perform server-side access control on incoming remote calls. The class
+-	 * loader, which may be <code>null</code>, is passed to the superclass
+-	 * constructor and is used by the {@link #createInstances createInstances}
+-	 * method.
+-	 * 
+-	 * @param serverConstraints
+-	 *            the server constraints, or <code>null</code>
+-	 * @param permissionClass
+-	 *            the permission class, or <code>null</code>
+-	 * @param loader
+-	 *            the class loader, or <code>null</code>
+-	 * @param serviceBeans
+-	 *            the objects to be exposed as services by the dispatcher of
+-	 *            this ILFactory
+-	 * 
+-	 * @throws IllegalArgumentException
+-	 *             if the permission class is abstract, is not a subclass of
+-	 *             {@link Permission}, or does not have a public constructor
+-	 *             that has either one <code>String</code> parameter or one
+-	 *             {@link Method}parameter and has no declared exceptions
+-	 */
+-	public SorcerILFactory(MethodConstraints serverConstraints,
+-			Class permissionClass, ClassLoader loader, Map serviceBeans)
+-			throws IllegalArgumentException {
+-		super(serverConstraints, permissionClass, loader);
+-		serviceBeanMap = serviceBeans;
+-	}
+-
+-	/**
+-	 * Returns a new array containing any additional interfaces that the proxy
+-	 * should implement, beyond the interfaces obtained by passing
+-	 * <code>impl</code> to the {@link #getRemoteInterfaces getRemoteInterfaces}
+-	 * method.
+-	 * 
+-	 * <p>
+-	 * <code>SorcerILFactory</code> implements this method to return a new array
+-	 * containing the interfaces of all services to be exposed and
+-	 * {@link RemoteMethodControl}and {@link TrustEquivalence}interfaces, in
+-	 * that order.
+-	 * 
+-	 * @throws NullPointerException
+-	 *             {@inheritDoc}
+-	 */
+-	protected Class[] getExtraProxyInterfaces(Remote impl)
+-			throws NullPointerException {
+-		if (impl == null) {
+-			throw new NullPointerException("impl is null");
+-		}
+-
+-		List exposedInterfaces = new ArrayList();
+-		Object curr = null;
+-		Iterator it = serviceBeanMap.keySet().iterator();
+-		while (it.hasNext()) {
+-			curr = (Class) it.next();
+-			if (curr != null && !exposedInterfaces.contains(curr))
+-				exposedInterfaces.add(curr);
+-		}
+-		exposedInterfaces.add(Service.class);
+-		exposedInterfaces.add(RemoteMethodControl.class);
+-		exposedInterfaces.add(TrustEquivalence.class);
+-		// exposedInterfaces.add(net.jini.admin.Administrable.class);
+-
+-		Class[] clazzes = new Class[exposedInterfaces.size()];
+-		for (int i = 0; i < clazzes.length; i++) {
+-			clazzes[i] = (Class) exposedInterfaces.get(i);
+-		}
+-		return clazzes;
+-	}
+-
+-	/** {@inheritDoc} */
+-	protected InvocationDispatcher createInvocationDispatcher(
+-			Collection methods, Remote impl, ServerCapabilities caps)
+-			throws ExportException {
+-		// pass on the method of the interfaces so as to make the dispatcher
+-		// aware that our custom methods need to be included
+-		Method[] additionalMethods;
+-		Class curr = null;
+-		Iterator it = serviceBeanMap.keySet().iterator();
+-		while (it.hasNext()) {
+-			curr = (Class) it.next();
+-			additionalMethods = curr.getDeclaredMethods();
+-			for (int j = 0; j < additionalMethods.length; j++)
+-				methods.add(additionalMethods[j]);
+-		}
+-		return new SorcerInvocationDispatcher(methods, caps,
+-				getServerConstraints(), getPermissionClass(), getClassLoader());
+-	}
+-
+-	/**
+-	 * Our custom dispatcher to be used for exporting SORCER service beans.
+-	 */
+-	private class SorcerInvocationDispatcher extends BasicInvocationDispatcher {
+-
+-		public SorcerInvocationDispatcher(Collection methods,
+-				ServerCapabilities serverCapabilities,
+-				MethodConstraints serverConstraints, Class permissionClass,
+-				ClassLoader loader) throws ExportException {
+-			super(methods, serverCapabilities, serverConstraints,
+-					permissionClass, loader);
+-		}
+-
+-		protected Object invoke(Remote impl, Method method, Object[] args,
+-				Collection context) throws Throwable {
++    protected final Logger logger = LoggerFactory.getLogger(SorcerILFactory.class);
++    /**
++     * Exposed service type map. A key is an interface and a value its
++     * implementing object.
++     */
++    protected final Map<Class<?>, Object> serviceBeanMap = new ConcurrentHashMap<>();
++
++    /**
++     * Creates a <code>SorcerILFactory</code> instance with no server
++     * constraints, no permission class, a <code>null</code> class loader and
++     * service beans.
++     */
++    public SorcerILFactory() {
++        super();
++    }
++
++    /**
++     * Creates a <code>SorcerILFactory</code> instance with no server
++     * constraints, no permission class, and a <code>null</code> class loader.
++     *
++     * @param serviceBeans the objects to be exposed as services by the dispatcher of
++     *                     this ILFactory
++     */
++    public SorcerILFactory(Map<Class<?>, Object> serviceBeans, ClassLoader loader) {
++        super(null, null, loader);
++        setServiceBeans(serviceBeans);
++    }
++
++    /**
++     * Creates a <code>SorcerILFactory</code> with the specified server
++     * constraints, permission class, and a <code>null</code> class loader.
++     *
++     * @param serverConstraints the server constraints, or <code>null</code>
++     * @param permissionClass   the permission class, or <code>null</code>
++     * @param serviceBeans      the objects to be exposed as services by the dispatcher of
++     *                          this ILFactory
++     * @throws IllegalArgumentException if the permission class is abstract, is not a subclass of
++     *                                  {@link Permission}, or does not have a public constructor
++     *                                  that has either one <code>String</code> parameter or one
++     *                                  {@link Method}parameter and has no declared exceptions
++     */
++    public SorcerILFactory(MethodConstraints serverConstraints,
++                           Class permissionClass,
++                           Map<Class<?>, Object> serviceBeans) throws IllegalArgumentException {
++        super(serverConstraints, permissionClass, null);
++        setServiceBeans(serviceBeans);
++    }
++
++    /**
++     * Creates a <code>SorcerILFactory</code> with the specified server
++     * constraints, permission class, and class loader. The server constraints,
++     * if not <code>null</code>, are used to enforce minimum constraints for
++     * remote calls. The permission class, if not <code>null</code>, is used to
++     * perform server-side access control on incoming remote calls. The class
++     * loader, which may be <code>null</code>, is passed to the superclass
++     * constructor and is used by the {@link #createInstances createInstances}
++     * method.
++     *
++     * @param serverConstraints the server constraints, or <code>null</code>
++     * @param permissionClass   the permission class, or <code>null</code>
++     * @param loader            the class loader, or <code>null</code>
++     * @param serviceBeans      the objects to be exposed as services by the dispatcher of
++     *                          this ILFactory
++     * @throws IllegalArgumentException if the permission class is abstract, is not a subclass of
++     *                                  {@link Permission}, or does not have a public constructor
++     *                                  that has either one <code>String</code> parameter or one
++     *                                  {@link Method}parameter and has no declared exceptions
++     */
++    public SorcerILFactory(MethodConstraints serverConstraints,
++                           Class permissionClass,
++                           ClassLoader loader,
++                           Map<Class<?>, Object> serviceBeans) throws IllegalArgumentException {
++        super(serverConstraints, permissionClass, loader);
++        setServiceBeans(serviceBeans);
++    }
++
++    private void setServiceBeans(Map<Class<?>, Object> serviceBeans) {
++        serviceBeanMap.putAll(serviceBeans);
++        if (logger.isTraceEnabled()) {
++            StringBuilder sb = new StringBuilder();
++            for (Map.Entry<Class<?>, Object> entry : serviceBeans.entrySet()) {
++                if (sb.length() > 0)
++                    sb.append("\n");
++                sb.append("    ").append(entry.getKey().getName()).append(": ").append(entry.getValue()
++                                                                                           .getClass()
++                                                                                           .getName());
++            }
++            logger.trace("Created SorcerILFactory with\n{}", sb.toString());
++        }
++    }
++
++    /**
++     * Returns a new array containing any additional interfaces that the proxy
++     * should implement, beyond the interfaces obtained by passing
++     * <code>impl</code> to the {@link #getRemoteInterfaces getRemoteInterfaces}
++     * method.
++     * <p>
++     * <p>
++     * <code>SorcerILFactory</code> implements this method to return a new array
++     * containing the interfaces of all services to be exposed and
++     * {@link RemoteMethodControl}and {@link TrustEquivalence}interfaces, in
++     * that order.
++     *
++     * @throws NullPointerException {@inheritDoc}
++     */
++    protected Class[] getExtraProxyInterfaces(Remote impl) throws NullPointerException {
++        if (impl == null) {
++            throw new NullPointerException("impl is null");
++        }
++
++        List<Class<?>> exposedInterfaces = new ArrayList<>();
++        for (Class<?> curr : serviceBeanMap.keySet()) {
++            if (curr != null && !exposedInterfaces.contains(curr))
++                exposedInterfaces.add(curr);
++        }
++        exposedInterfaces.add(Service.class);
++        exposedInterfaces.add(RemoteMethodControl.class);
++        exposedInterfaces.add(TrustEquivalence.class);
++        // exposedInterfaces.add(net.jini.admin.Administrable.class);
++
++        Class[] clazzes = new Class[exposedInterfaces.size()];
++        for (int i = 0; i < clazzes.length; i++) {
++            clazzes[i] = exposedInterfaces.get(i);
++        }
++        return clazzes;
++    }
++
++    @Override
++    protected InvocationDispatcher createInvocationDispatcher(Collection methods,
++                                                              Remote impl,
++                                                              ServerCapabilities caps) throws ExportException {
++        return new SorcerInvocationDispatcher(methods, caps, getServerConstraints(), getPermissionClass(), getClassLoader());
++    }
++
++    @Override protected Collection getInvocationDispatcherMethods(Remote impl) throws ExportException {
++        Set<Method> methods = new HashSet<>();
++        methods.addAll(super.getInvocationDispatcherMethods(impl));
++        for (Class<?> c : serviceBeanMap.keySet()) {
++            Collections.addAll(methods, c.getDeclaredMethods());
++        }
++        return methods;
++    }
++
++    private String formatMethodList(Collection<Method> l) {
++        StringBuilder s = new StringBuilder();
++        for (Method m : l) {
++            if (s.length() > 0)
++                s.append("\n");
++            s.append("    ").append(m.getName());
++        }
++        return s.toString();
++    }
++
++    /**
++     * Our custom dispatcher to be used for exporting SORCER service beans.
++     */
++    private class SorcerInvocationDispatcher extends BasicInvocationDispatcher {
++        Logger logger = LoggerFactory.getLogger(SorcerInvocationDispatcher.class);
++
++        public SorcerInvocationDispatcher(Collection methods,
++                                          ServerCapabilities serverCapabilities,
++                                          MethodConstraints serverConstraints,
++                                          Class<?> permissionClass,
++                                          ClassLoader loader) throws ExportException {
++            super(methods, serverCapabilities, serverConstraints, permissionClass, loader);
++            if (logger.isTraceEnabled())
++                logger.trace("Created SorcerInvocationDispatcher");
++        }
++
++        @Override
++        protected Object invoke(Remote impl, Method method, Object[] args, Collection context) throws Throwable {
+             try {
+                 setupLogging(impl, args);
+                 return doInvoke(impl, method, args, context);
++            } catch (Throwable t) {
++                logger.error("Failed", t);
++                throw t;
+             } finally {
+                 cleanLogging();
+             }
+         }
+ 
+         private void setupLogging(Remote impl, Object[] args) {
+-            if(remoteLogging)
++            if (remoteLogging)
+                 MDC.put(MDC_SORCER_REMOTE_CALL, MDC_SORCER_REMOTE_CALL);
+             if (impl instanceof Identifiable) {
+-				Identifiable identifiable = (Identifiable) impl;
+-				MDC.put(MDC_PROVIDER_ID, identifiable.getId().toString());
+-				MDC.put(MDC_PROVIDER_NAME, identifiable.getName());
+-			}
++                Identifiable identifiable = (Identifiable) impl;
++                MDC.put(MDC_PROVIDER_ID, identifiable.getId().toString());
++                MDC.put(MDC_PROVIDER_NAME, identifiable.getName());
++            }
+             if (args.length > 0 && args[0] instanceof Exertion) {
+                 Exertion xrt = ((Exertion) args[0]);
+                 if (xrt != null && xrt.getId() != null)
+@@ -248,85 +258,127 @@ private void setupLogging(Remote impl, Object[] args) {
+         }
+ 
+         private void cleanLogging() {
+-			MDC.remove(MDC_PROVIDER_NAME);
++            MDC.remove(MDC_PROVIDER_NAME);
+             MDC.remove(MDC_SORCER_REMOTE_CALL);
+             MDC.remove(MDC_MOGRAM_ID);
+             MDC.remove(MDC_PROVIDER_ID);
+         }
+ 
+-		protected Object doInvoke(Remote impl, Method method, Object[] args,
+-							  Collection context) throws Throwable {
+-		if (impl == null || args == null || context == null)
+-			throw new NullPointerException();
+-
+-		if (!method.isAccessible()
+-				&& !(Modifier.isPublic(method.getDeclaringClass()
+-				.getModifiers()) && Modifier.isPublic(method
+-				.getModifiers())))
+-			throw new IllegalArgumentException(
+-					"method not public or set accessible");
+-
+-		Class decl = method.getDeclaringClass();
+-		if (decl == ProxyTrust.class
+-				&& method.getName().equals("getProxyVerifier")
+-				&& impl instanceof ServerProxyTrust) {
+-			if (args.length != 0)
+-				throw new IllegalArgumentException("incorrect arguments");
+-
+-			return ((ServerProxyTrust) impl).getProxyVerifier();
+-		}
+-		Object obj = null;
+-		try {
+-			// handle context management by the containing provider
+-			if (decl == ContextManagement.class) {
+-				obj = method.invoke(impl, args);
+-				return obj;
+-			}
+-
+-			Object service = null;
+-			if (args.length > 0 && isSorcerType(args[0])) {
+-				service = serviceBeanMap.get(((Exertion) args[0]).getProcessSignature().getServiceType());
+-				if (service != null) {
+-					obj = method.invoke(service, args);
+-				} else {
+-					service = serviceBeanMap.get(RemoteServiceShell.class);
+-					obj = ((ServiceShell)service).exert((Mogram)args[0], (Transaction)args[1], (Arg[]) args[2]);
+-				}
+-			} else {
+-				service = serviceBeanMap.get(method.getDeclaringClass());
+-				if (service != null) {
+-					obj = method.invoke(service, args);
+-				} else {
+-					obj = method.invoke(impl, args);
+-				}
+-			}
+-		} catch (Throwable t) {
+-			logger.debug("SorcerILFactory failed " + t);
+-			throw new ExertionException(t);
+-		}
+-		return obj;
+-	}
+-}
+ 
+-	private boolean isSorcerType(Object target) {
+-		if (target instanceof Exertion) {
+-			Class serviceType = ((Exertion)target).getProcessSignature().getServiceType();
+-			if (target instanceof CompoundExertion
+-					|| Modeler.class.isAssignableFrom(serviceType)
++        protected Object doInvoke(Remote impl,
++                                  Method method,
++                                  Object[] args,
++                                  Collection context) throws Throwable {
++            if (logger.isTraceEnabled())
++                logger.trace("Invoke {}", method);
++            if (impl == null || args == null || context == null)
++                throw new NullPointerException();
++
++            if (!method.isAccessible() &&
++                !(Modifier.isPublic(method.getDeclaringClass().getModifiers()) &&
++                  Modifier.isPublic(method.getModifiers())))
++                throw new IllegalArgumentException("method not public or set accessible");
++
++            Class decl = method.getDeclaringClass();
++            if (decl == ProxyTrust.class &&
++                method.getName().equals("getProxyVerifier") &&
++                impl instanceof ServerProxyTrust) {
++                if (args.length != 0)
++                    throw new IllegalArgumentException("incorrect arguments");
++
++                return ((ServerProxyTrust) impl).getProxyVerifier();
++            }
++            Object obj;
++            try {
++                // handle context management by the containing provider
++                if (decl == ContextManagement.class) {
++                    obj = method.invoke(impl, args);
++                    return obj;
++                }
++
++                Object service;
++                if (args.length > 0 && isSorcerType(args[0])) {
++                    if (logger.isTraceEnabled())
++                        logger.trace("Process Sorcer type for {}", args[0].getClass().getName());
++                    service = serviceBeanMap.get(((Exertion) args[0]).getProcessSignature().getServiceType());
++                    if (service != null) {
++                        if (logger.isTraceEnabled())
++                            logger.trace("Service determined to be {}", service.getClass().getName());
++                        obj = method.invoke(service, args);
++                    } else {
++                        service = serviceBeanMap.get(RemoteServiceShell.class);
++                        if (logger.isTraceEnabled())
++                            logger.trace("ServiceShell exertion\nargs[0]: {}\nargs[1]: {}\nargs[2]: {}",
++                                         args[0], args[1], args[2]);
++                        obj = ((ServiceShell) service).exert((Mogram) args[0], (Transaction) args[1], (Arg[]) args[2]);
++                    }
++                } else {
++                    if (logger.isTraceEnabled())
++                        logger.trace("{} declaring class {}", method.getName(), method.getDeclaringClass().getName());
++                    service = getBean(method.getDeclaringClass());
++                    if (service != null) {
++                        if (logger.isTraceEnabled()) {
++                            String indent = "    ";
++                            logger.trace("Process bean invocation for\n{}{}\n{}{}",
++                                         indent, method, indent, service.getClass().getName());
++                        }
++                        obj = method.invoke(service, args);
++                    } else {
++                        if (logger.isTraceEnabled()) {
++                            String indent = "    ";
++                            logger.trace("Process bean invocation for\n{}{}\n{}{}",
++                                         indent, method, indent, impl.getClass().getName());
++                        }
++                        obj = method.invoke(impl, args);
++                    }
++                }
++            } catch (Throwable t) {
++                logger.error("SorcerInvocationDispatcher failed", t);
++                throw new ExertionException(t);
++            }
++            return obj;
++        }
++    }
++
++    Object getBean(Class<?> declaringClass) {
++        Object bean = serviceBeanMap.get(declaringClass);
++        if (bean == null) {
++            for (Map.Entry<Class<?>, Object> entry : serviceBeanMap.entrySet()) {
++                if (logger.isTraceEnabled())
++                    logger.trace("Check if {} is assignable from {}", declaringClass.getName(), entry.getKey().getName());
++                if (declaringClass.isAssignableFrom(entry.getKey())) {
++                    bean = entry.getValue();
++                    if (logger.isTraceEnabled())
++                        logger.trace("{} is assignable from {}", declaringClass.getName(), entry.getKey().getName());
++                    break;
++                }
++            }
++            if (bean != null) {
++                serviceBeanMap.put(declaringClass, bean);
++            }
++        }
++        return bean;
++    }
++
++    private static boolean isSorcerType(Object target) {
++        if (target instanceof Exertion) {
++            Class serviceType = ((Exertion) target).getProcessSignature().getServiceType();
++            if (target instanceof CompoundExertion
++                || Modeler.class.isAssignableFrom(serviceType)
+ //					|| Modeling.class.isAssignableFrom(serviceType)
+-					|| Evaluation.class.isAssignableFrom(serviceType)
+-					|| Invocation.class.isAssignableFrom(serviceType))
+-				return true;
+-			else
+-				return false;
+-		} else {
+-			return false;
+-		}
+-	}
++                || Evaluation.class.isAssignableFrom(serviceType)
++                || Invocation.class.isAssignableFrom(serviceType))
++                return true;
++            else
++                return false;
++        } else {
++            return false;
++        }
++    }
+ 
+     private boolean remoteLogging = true;
+ 
+-    public void setRemoteLogging(boolean remoteLogging){
++    public void setRemoteLogging(boolean remoteLogging) {
+         this.remoteLogging = remoteLogging;
+-	}
++    }
+ }
+diff --git a/core/sorcer-platform/src/main/java/sorcer/service/Job.java b/core/sorcer-platform/src/main/java/sorcer/service/Job.java
+index e8f76aa..18fb5bb 100644
+--- a/core/sorcer-platform/src/main/java/sorcer/service/Job.java
++++ b/core/sorcer-platform/src/main/java/sorcer/service/Job.java
+@@ -339,22 +339,23 @@ public String getContextName() {
+ 	public String toString() {
+ 		StringBuffer desc = new StringBuffer(super.toString());
+ 		desc.append("\n=== START PRINTING JOB ===\n");	
+-		desc
+-				.append("\n=============================\nListing Component Exertions\n=============================\n");
++		desc.append("\n=============================\nListing Component Exertions\n=============================\n");
+ 		for (int i = 0; i < size(); i++) {
+-			desc.append("\n===========\n Exertion ").append(i).append(
+-					"\n===========\n").append(
+-					((ServiceExertion) get(i)).describe());
++			desc.append("\n===========\n Exertion ").append(i).append("\n===========\n").append((get(i)).describe());
+ 		}
+ 		desc.append("\n=== DONE PRINTING JOB ===\n");
+ 		return desc.toString();
+ 	}
+ 
+ 	@Override
+-	public List<ThrowableTrace> getExceptions() throws RemoteException {
++	public List<ThrowableTrace> getExceptions() {
+ 		List<ThrowableTrace> exceptions = new ArrayList<ThrowableTrace>();
+ 		for (Mogram ext : mograms) {
+-			exceptions.addAll(ext.getExceptions());
++			try {
++				exceptions.addAll(ext.getExceptions());
++			} catch (RemoteException e) {
++				exceptions.add(new ThrowableTrace("Problem while collecting exceptions", e));
++			}
+ 		}
+ 		return exceptions;
+ 	}
+diff --git a/core/sorcer-platform/src/main/java/sorcer/service/ServiceExertion.java b/core/sorcer-platform/src/main/java/sorcer/service/ServiceExertion.java
+index e5c8bae..b0f2152 100644
+--- a/core/sorcer-platform/src/main/java/sorcer/service/ServiceExertion.java
++++ b/core/sorcer-platform/src/main/java/sorcer/service/ServiceExertion.java
+@@ -179,8 +179,7 @@ private void handleExertOutput(ServiceExertion exertion, Object result ) throws
+      *
+      * @see sorcer.service.Invoker#invoke()
+      */
+-    public Object invoke() throws RemoteException,
+-            InvocationException {
++    public Object invoke() throws InvocationException {
+         return invoke(new Arg[]{});
+     }
+ 
+@@ -189,8 +188,7 @@ public Object invoke() throws RemoteException,
+      *
+      * @see sorcer.service.Invoker#invoke(sorcer.service.Arg[])
+      */
+-    public Object invoke(Arg[] entries) throws RemoteException,
+-            InvocationException {
++    public Object invoke(Arg[] entries) throws InvocationException {
+         ReturnPath rp = null;
+         for (Arg a : entries) {
+             if (a instanceof ReturnPath) {
+@@ -221,8 +219,7 @@ else  if (rp.outPaths != null) {
+         }
+     }
+ 
+-    public Object invoke(Context context)
+-            throws RemoteException, InvocationException {
++    public Object invoke(Context context) throws InvocationException {
+         return invoke(context, new Arg[] {});
+     }
+ 
+@@ -232,8 +229,7 @@ public Object invoke(Context context)
+      * @see sorcer.service.Invoker#invoke(sorcer.service.Context,
+      * sorcer.service.Arg[])
+      */
+-    public Object invoke(Context context, Arg[] entries)
+-            throws RemoteException, InvocationException {
++    public Object invoke(Context context, Arg[] entries) throws InvocationException {
+         try {
+             substitute(entries);
+             if (context != null) {
+@@ -720,7 +716,7 @@ public String info() {
+      * @see sorcer.service.Exertion#getExceptions()
+      */
+     @Override
+-    public List<ThrowableTrace> getExceptions() throws RemoteException {
++    public List<ThrowableTrace> getExceptions() {
+         if (controlContext != null)
+             return controlContext.getExceptions();
+         else
+@@ -733,12 +729,12 @@ public String info() {
+      * @see sorcer.service.Exertion#getExceptions()
+      */
+     @Override
+-    public List<ThrowableTrace> getAllExceptions() throws RemoteException {
++    public List<ThrowableTrace> getAllExceptions() {
+         List<ThrowableTrace> exceptions = new ArrayList<ThrowableTrace>();
+         return getExceptions(exceptions);
+     }
+ 
+-    public List<ThrowableTrace> getExceptions(List<ThrowableTrace> exs) throws RemoteException {
++    public List<ThrowableTrace> getExceptions(List<ThrowableTrace> exs) {
+         if (controlContext != null)
+             exs.addAll(controlContext.getExceptions());
+         return exs;
+diff --git a/core/sorcer-platform/src/main/java/sorcer/util/SorcerEnv.java b/core/sorcer-platform/src/main/java/sorcer/util/SorcerEnv.java
+index 61cc55c..ac70a38 100755
+--- a/core/sorcer-platform/src/main/java/sorcer/util/SorcerEnv.java
++++ b/core/sorcer-platform/src/main/java/sorcer/util/SorcerEnv.java
+@@ -383,8 +383,10 @@ public static Properties loadFileProperties(String filename, boolean expending)
+ 				File file = new File(filename);
+                 String fn = "configs/" + file.getName();
+                 ClassLoader resourceLoader = Thread.currentThread().getContextClassLoader();
++				if(logger.isTraceEnabled()) {
++					logger.trace("Using {}: {}", resourceLoader.getClass().getName(), resourceLoader);
++				}
+                 if(logger.isDebugEnabled()) {
+-                    logger.debug("Using "+resourceLoader.getClass().getName()+": "+resourceLoader);
+                     Enumeration<URL> resources = resourceLoader.getResources(fn);
+                     StringBuilder sb = new StringBuilder();
+                     while(resources.hasMoreElements()) {
+
+From 115f2fb5b2f41c3f0d893821a894197902270ebc Mon Sep 17 00:00:00 2001
+From: dreedyman <dennis.reedy@gmail.com>
+Date: Wed, 20 Jan 2016 14:09:27 -0500
+Subject: [PATCH 2/3] Logging level for sorcer.jini.jeri
+
+---
+ configs/sorcer-logging.groovy | 3 +--
+ 1 file changed, 1 insertion(+), 2 deletions(-)
+
+diff --git a/configs/sorcer-logging.groovy b/configs/sorcer-logging.groovy
+index 4e83c08..6acb1b9 100755
+--- a/configs/sorcer-logging.groovy
++++ b/configs/sorcer-logging.groovy
+@@ -149,7 +149,6 @@ logger("sorcer.core.provider.cataloger.ServiceCataloger", WARN)
+ logger("sorcer.core.provider.ServiceProvider", WARN)
+ //logger("sorcer.core.provider.rendezvous.RendezvousBean", ALL)
+ //logger("sorcer.core.provider.rendezvous.ServiceModeler", ALL)
+-//logger("sorcer.jini.jeri.SorcerILFactory", ALL)
+ logger("sorcer.core.provider.ControlFlowManager", WARN)
+ logger("sorcer.core.provider.ProviderDelegate", INFO)
+ logger("sorcer.tools.shell.NetworkShell", WARN)
+@@ -195,7 +194,7 @@ logger("sorcer.modeling.core.context.model.var.ParametricModel", WARN)
+  * ==================================================================*/
+ logger("sorcer.core.context.eval", OFF)
+ logger("sorcer.core.context", TRACE)
+-logger("sorcer.jini.jeri.SorcerILFactory", TRACE)
++logger("sorcer.jini.jeri.SorcerILFactory", WARN)
+ 
+ logger("sorcer.ui.tools", DEBUG)
+ logger("sorcer.util", DEBUG)
+
+From 75b21da2c41aa4ecf409fa9698f51420d44e0c2f Mon Sep 17 00:00:00 2001
+From: prubach <pawel.rubach@sorcersoft.com>
+Date: Sat, 23 Jan 2016 00:41:30 +0100
+Subject: [PATCH 3/3] Fix loading libs in shell
+
+---
+ .../src/main/java/sorcer/netlet/util/LoaderConfigurationHelper.java     | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/core/sorcer-platform/src/main/java/sorcer/netlet/util/LoaderConfigurationHelper.java b/core/sorcer-platform/src/main/java/sorcer/netlet/util/LoaderConfigurationHelper.java
+index 48ab73b..5ddf1e7 100755
+--- a/core/sorcer-platform/src/main/java/sorcer/netlet/util/LoaderConfigurationHelper.java
++++ b/core/sorcer-platform/src/main/java/sorcer/netlet/util/LoaderConfigurationHelper.java
+@@ -85,7 +85,7 @@
+                 } catch (MalformedURLException e) {
+                     throw new RuntimeException(e);
+                 }
+-        } else if ("file".equals(scheme) || scheme==null) {
++        } else if ("file".equals(scheme) || scheme==null || (new File(str).exists())) {
+             return getFilesFromFilteredPath(str);
+         }
+         }

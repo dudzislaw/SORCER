@@ -1,0 +1,119 @@
+From 1f26f46fa7166759ad4809ceafb05ef1c184c740 Mon Sep 17 00:00:00 2001
+From: Michael Sobolewski <sobol@sorcersoft.org>
+Date: Thu, 28 Jan 2016 16:56:25 +0100
+Subject: [PATCH] updated coffeemaker requestor
+
+---
+ .../edu/pjatk/inn/coffeemaker/impl/CoffeeMaker.java   |  2 +-
+ .../edu/pjatk/inn/coffeemaker/impl/DeliveryImpl.java  |  5 ++++-
+ .../inn/requestor/CoffeeMakerExertRequestor.java      | 12 +++++-------
+ .../src/main/netlets/coffeemaker-exertion-remote.ntl  | 19 +++++++++++++++++++
+ 4 files changed, 29 insertions(+), 9 deletions(-)
+ create mode 100755 examples/coffeemaker/src/main/netlets/coffeemaker-exertion-remote.ntl
+
+diff --git a/examples/coffeemaker/src/main/java/edu/pjatk/inn/coffeemaker/impl/CoffeeMaker.java b/examples/coffeemaker/src/main/java/edu/pjatk/inn/coffeemaker/impl/CoffeeMaker.java
+index 81c2d92..014aacc 100755
+--- a/examples/coffeemaker/src/main/java/edu/pjatk/inn/coffeemaker/impl/CoffeeMaker.java
++++ b/examples/coffeemaker/src/main/java/edu/pjatk/inn/coffeemaker/impl/CoffeeMaker.java
+@@ -254,7 +254,7 @@ public Context makeCoffee(Context context) throws RemoteException, ContextExcept
+ 			amtPaid  = (Integer)context.getValue("coffee/paid");
+ 		Recipe r = getRecipeForName(recipeName);
+ 		if (amtPaid != 0)
+-			context.putValue("change", makeCoffee(r, amtPaid));
++			context.putValue("coffee/change", makeCoffee(r, amtPaid));
+ 		context.putValue("price", r.getPrice());
+ 
+ 		if (context.getReturnPath() != null) {
+diff --git a/examples/coffeemaker/src/main/java/edu/pjatk/inn/coffeemaker/impl/DeliveryImpl.java b/examples/coffeemaker/src/main/java/edu/pjatk/inn/coffeemaker/impl/DeliveryImpl.java
+index 1fc32f1..1b369e5 100755
+--- a/examples/coffeemaker/src/main/java/edu/pjatk/inn/coffeemaker/impl/DeliveryImpl.java
++++ b/examples/coffeemaker/src/main/java/edu/pjatk/inn/coffeemaker/impl/DeliveryImpl.java
+@@ -14,8 +14,11 @@
+     @Override
+     public Context deliver(Context context) throws RemoteException, ContextException {
+         // from/to any place the flat rate $0.60
+-        int flatRate = 60;
++        Integer flatRate = 60;
+         context.putValue("delivery/cost", flatRate);
++        if (context.getValue("delivery/paid") != null) {
++            context.putValue("deliver/change", ((Integer) context.getValue("delivery/paid")) - flatRate);
++        }
+ 
+         if (context.getReturnPath() != null) {
+             context.setReturnValue(flatRate);
+diff --git a/examples/coffeemaker/src/main/java/edu/pjatk/inn/requestor/CoffeeMakerExertRequestor.java b/examples/coffeemaker/src/main/java/edu/pjatk/inn/requestor/CoffeeMakerExertRequestor.java
+index a0fb045..d65d04e 100755
+--- a/examples/coffeemaker/src/main/java/edu/pjatk/inn/requestor/CoffeeMakerExertRequestor.java
++++ b/examples/coffeemaker/src/main/java/edu/pjatk/inn/requestor/CoffeeMakerExertRequestor.java
+@@ -2,9 +2,6 @@
+ 
+ import edu.pjatk.inn.coffeemaker.CoffeeService;
+ import edu.pjatk.inn.coffeemaker.Delivery;
+-import edu.pjatk.inn.coffeemaker.impl.CoffeeMaker;
+-import edu.pjatk.inn.coffeemaker.impl.DeliveryImpl;
+-import sorcer.core.provider.rendezvous.ServiceJobber;
+ import sorcer.core.requestor.ExertRequestor;
+ import sorcer.service.*;
+ import sorcer.service.modeling.Model;
+@@ -13,9 +10,7 @@
+ 
+ import static sorcer.co.operator.*;
+ import static sorcer.eo.operator.*;
+-import static sorcer.mo.operator.response;
+ import static sorcer.mo.operator.responseUp;
+-import static sorcer.eo.operator.result;
+ import static sorcer.po.operator.invoker;
+ 
+ public class CoffeeMakerExertRequestor extends ExertRequestor {
+@@ -32,7 +27,7 @@ public Mogram getMogram(String... args) throws MogramException {
+         }
+         try {
+             if (option.equals("netlet")) {
+-                return (Exertion) evaluate(new File("src/main/netlets/coffeeMaker.ntl"));
++                return (Exertion) evaluate(new File("src/main/netlets/coffeemaker-exertion-remote.ntl"));
+             } else if (option.equals("model")) {
+                 return createModel();
+             } else if (option.equals("exertion")) {
+@@ -59,13 +54,16 @@ private Exertion createExertion() throws Exception {
+         Task coffee = task("coffee", sig("makeCoffee", CoffeeService.class), context(
+                 ent("recipe/name", "espresso"),
+                 ent("coffee/paid", 120),
++                ent("coffee/change"),
+                 ent("recipe", getEspressoContext())));
+ 
+         Task delivery = task("delivery", sig("deliver", Delivery.class), context(
+                 ent("location", "PJATK"),
++                ent("delivery/paid"),
+                 ent("room", "101")));
+ 
+-        Job drinkCoffee = job(coffee, delivery);
++        Job drinkCoffee = job(coffee, delivery,
++                pipe(outPoint(coffee, "coffee/change"), inPoint(delivery, "delivery/paid")));
+ 
+         return drinkCoffee;
+     }
+diff --git a/examples/coffeemaker/src/main/netlets/coffeemaker-exertion-remote.ntl b/examples/coffeemaker/src/main/netlets/coffeemaker-exertion-remote.ntl
+new file mode 100755
+index 0000000..d436899
+--- /dev/null
++++ b/examples/coffeemaker/src/main/netlets/coffeemaker-exertion-remote.ntl
+@@ -0,0 +1,19 @@
++#!/usr/bin/env nsh
++
++@Codebase(group='org.sorcer', module='coffeemaker', version='${sorcer.version}', classifier='dl')
++import edu.pjatk.inn.coffeemaker.CoffeeService
++import edu.pjatk.inn.coffeemaker.Delivery
++
++Task coffee = task("coffee", sig("makeCoffee", CoffeeService.class), context(
++        ent("recipe/name", "espresso"),
++        ent("coffee/paid", 120),
++        ent("coffee/change"),
++        ent("recipe", getEspressoContext())));
++
++Task delivery = task("delivery", sig("deliver", Delivery.class), context(
++        ent("location", "PJATK"),
++        ent("delivery/paid"),
++        ent("room", "101")));
++
++job(coffee, delivery,
++        pipe(outPoint(coffee, "coffee/change"), inPoint(delivery, "delivery/paid")));
